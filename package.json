@@ -1,0 +1,33 @@
+{
+  "name": "pull-plex",
+  "version": "1.0.0",
+  "description": "Lightweight multiplexing for pull streams",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/davidmarkclements/pull-plex"
+  },
+  "keywords": [
+    "multiplex",
+    "stream",
+    "pull-stream",
+    "multiplexing",
+    "dataplex",
+    "packet-plex"
+  ],
+  "browser": {
+    "./lib/encdec.js": "./lib/encdec-browser.js"
+  },
+  "author": "David Mark Clements",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/davidmarkclements/pull-plex/issues"
+  },
+  "homepage": "https://github.com/davidmarkclements/pull-plex",
+  "dependencies": {
+    "pull-core": "^1.0.0"
+  }
+}
