@@ -1,4 +1,10 @@
-demux:
+# pull-plex
+
+Lightweight multiplexing for pull streams
+
+## demux
+
+```
 var plex = require('pull-plex')
 var multi = plex();
 var coaxial = multi(src: pull.Source) => demuxxer: pull.Through
@@ -8,8 +14,11 @@ coaxial.channel(1).pipe(snk: pull.Sink)
 coaxial.channel(2).pipe(snk: pull.Sink)
 
 coaxial.demux(); //trigger channel pipes
+```
 
-mux:
+## mux
+
+```
 var plex = require('pull-plex')
 var multi = plex()
 multi(snk1: pull.Sink)
@@ -24,3 +33,4 @@ src4.pipe(channel4)
 src5.pipe(multi(snk2: pull.Sink))
 
 multi.channels.length // 5
+```
