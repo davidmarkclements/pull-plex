@@ -1,6 +1,6 @@
 var pull = require('pull-core')
 var encdec = require('./lib/encdec')
-window.encdec = encdec
+
 var devnull = pull.Sink(function(read) {
   read(0, function next(end) { read(end, next) })
 })
