@@ -1,6 +1,6 @@
 var pull = require('pull-core')
 var encdec = require('./lib/encdec')
-
+window.encdec = encdec
 var devnull = pull.Sink(function(read) {
   read(0, function next(end) { read(end, next) })
 })
@@ -80,7 +80,7 @@ module.exports = function () {
     channel.remove = function () {
       var ix = channel.index;
       channel.abort();
-      channels.slice(ix, channels.length).forEach(function (s) {
+      channels.slice(ix).forEach(function (s) {
         s.index -= 1;
       })
       channels.splice(ix, 1);
