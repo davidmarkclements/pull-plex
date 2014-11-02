@@ -15,11 +15,11 @@ snk = pull.Sink(function (read, name) {
     read(end, next)
   })
 })
-demuxxer = plex()
-meow = demuxxer(src(10, 15))
-demuxxer.channel(100).pipe(snk('blegh'))
-demuxxer.channel(101).pipe(snk('blugh'))
-meow.pipe(demuxxer.devnull())
+var multi=plex()
+var coax = multi(src(10,15))
+coax.channel(100).pipe(snk('one hundred'))
+coax.channel(101).pipe(snk('one oh one'))
+coax.demux()
 
 
 asycn dual streaming same channel

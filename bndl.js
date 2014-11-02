@@ -5,9 +5,11 @@ window.plex = require('./index.js')
 },{"./index.js":2,"pull-core":5}],2:[function(require,module,exports){
 var pull = require('pull-core')
 var encdec = require('./lib/encdec')
-window.encdec = encdec
 var devnull = pull.Sink(function(read) {
-  read(0, function next(end) { read(end, next) })
+  read(0, function next(end) { 
+    if (end) {return}
+    read(end, next) 
+  })
 })
 
 function mux(stream, index) {
@@ -29,22 +31,27 @@ function mux(stream, index) {
 
 function demux(stream, channels) {
   return pull.Through(function (read) {
-    return function (end, cb) {
+    function dmux(end, cb) {
       if (end) {return;}
       read(0, function (end, data) {
         if (end) {return;}
         var decoded = encdec(data)
         var chan = decoded.chan
-        
-        if (!channels[chan]) {
-          channels[chan] = recieverChannel()
-        } 
-
+        channels[chan] = dmux.channel(chan) 
         channels[chan].next(decoded.data)
-
         cb(end, data)
       })
     }
+
+    dmux.channels = channels;
+    dmux.channel =  function (chan) {
+      return channels[chan] || 
+        (channels[chan] = recieverChannel())
+    }
+
+
+
+    return dmux;
   })()
 }
 
@@ -69,20 +76,8 @@ function recieverChannel() {
   return channel
 }
 
-module.exports = function () {
-  var channels = [];
-
-  function plex(stream) {
-    var ix = channels.length, channel;
-
-    if (stream.type === 'Source') {
-      stream = stream.pipe(demux(stream, channels));
-      stream.demux = function () { return stream.pipe(devnull()); }
-      return stream;
-    }
-    
-    channel = mux(stream, ix).pipe(stream)
-    channel.remove = function () {
+function remover(channel, channels) {
+  return function () {
       var ix = channel.index;
       channel.abort();
       channels.slice(ix).forEach(function (s) {
@@ -90,6 +85,25 @@ module.exports = function () {
       })
       channels.splice(ix, 1);
     }
+}
+
+module.exports = function () {
+  var channels = [], demuxxing = [];
+
+
+  function plex(stream) {
+    var ix, channel;
+
+    if (stream.type === 'Source') {
+      stream = stream.pipe(demux(stream, demuxxing));
+      stream.demux = function () { 
+        return stream.pipe(devnull()); 
+      }
+      return stream;
+    }
+    ix = channels.length
+    channel = mux(stream, ix).pipe(stream)
+    channel.remove = remover(channel, channels)
 
     channels.push(channel)
 
@@ -98,13 +112,7 @@ module.exports = function () {
 
   plex.channels = channels;
 
-  //TODO: - what if we don't want a receiverChannel
-  // we want a sender channel which was neglected to
-  // be set up
   plex.channel = function (chan) { 
-    if (!channels[chan]) {
-      channels[chan] = recieverChannel()
-    }
     return channels[chan];
   }
 
@@ -138,16 +146,28 @@ module.exports = function(data, chan) {
 
 }
 },{"./encdec-string":4,"varint":8}],4:[function(require,module,exports){
+var varint = require('varint');
+var FILL = String.fromCharCode(128);
+
 module.exports = function (data, chan) {
   if (arguments.length > 1)
-    return String.fromCharCode(chan) + data;
-  
+    return varint.encode(chan).map(function (n) {
+      return String.fromCharCode(n);
+    }).join('') + data;
+
+  var maxVarintLength = 0;
+  while (++maxVarintLength && (data[maxVarintLength] === FILL));
+  maxVarintLength += 8;
+
   return {
-    chan: data.charCodeAt(0),
-    data: data.slice(1, data.length)
+    chan: varint.decode(data
+      .slice(0, maxVarintLength)
+      .split('')
+      .map(function (s) { return s.charCodeAt(0) })),
+    data: data.slice(varint.decode.bytes)
   }
 }
-},{}],5:[function(require,module,exports){
+},{"varint":8}],5:[function(require,module,exports){
 exports.id = 
 function (item) {
   return item
