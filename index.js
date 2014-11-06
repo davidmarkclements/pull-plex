@@ -1,75 +1,63 @@
 var pull = require('pull-core')
 var encdec = require('./lib/encdec')
 var devnull = pull.Sink(function(read) {
-  read(0, function next(end) { 
+  read(0, function next(end, d) {
+    // console.log('pp', d) 
     if (end) {return}
     read(end, next) 
   })
 })
 
-function mux(stream, index) {
-  var aborted;
-  var through = pull.Through(function (read) {
-    return function (end, cb) {
-      if (end) {return;}
-      read(0, function (end, data) {
-        if (end) {return;}
-        cb(aborted || end, encdec(data, index))
-      })
-    }
-  })()
-
-  through.abort = function () { aborted = true; }
-
-  return through;
-}
-
-function demux(stream, channels) {
-  return pull.Through(function (read) {
-    function dmux(end, cb) {
-      if (end) {return;}
-      read(0, function (end, data) {
-        if (end) {return;}
-        var decoded = encdec(data)
-        var chan = decoded.chan
-        channels[chan] = dmux.channel(chan) 
-        channels[chan].next(decoded.data)
-        cb(end, data)
-      })
-    }
-
-    dmux.channels = channels;
-    dmux.channel =  function (chan) {
-      return channels[chan] || 
-        (channels[chan] = recieverChannel())
-    }
-
-
-
-    return dmux;
-  })()
-}
-
-function recieverChannel() {
+var recieverChannel = pull.Source(function () {
   var aborted, cbs = [];
-  
-  var channel = pull.Source(function () {
-      return function (end, cb) {
-        if (end) { return; }
-        if (~cbs.indexOf(cb)) { return; }
-        cbs.push(cb);
-      }
-  })()
-
+  function channel (end, cb) {
+    if (end) { return; }
+    if (~cbs.indexOf(cb)) { return; }
+    cbs.push(cb);
+  }
   channel.abort = function () { aborted = true; }
   channel.next = function (data) {
     cbs.forEach(function (cb) {
       cb(aborted, data)
     });
   }
+  return channel;
+})
 
-  return channel
-}
+var mux = pull.Through(function (read, stream, index) {
+  var aborted;
+  function through(end, cb) {
+    if (end) {return;}
+    read(0, function (end, data) {
+      if (end) {return;}
+      cb(aborted || end, encdec(data, index))
+    })
+  }
+  through.abort = function () { aborted = true; }
+  return through
+})
+
+var demux = pull.Through(function (read, stream, channels) {
+  function demux(end, cb) {
+    if (end) {return;}
+    read(0, function (end, data) {
+      if (end) {return;}
+      var decoded = encdec(data)
+      var chan = decoded.chan
+      channels[chan] = demux.channel(chan) 
+      channels[chan].next(decoded.data)
+      cb(end, data)
+    })
+  }
+
+  demux.channels = channels;
+  demux.channel =  function (chan) {
+    return channels[chan] || 
+      (channels[chan] = recieverChannel())
+  }
+
+  return demux;
+})
 
 function remover(channel, channels) {
   return function () {
@@ -82,17 +70,16 @@ function remover(channel, channels) {
     }
 }
 
-module.exports = function () {
+module.exports = function plex() {
   var channels = [], demuxxing = [];
 
-
-  function plex(stream) {
+  function multi(stream) {
     var ix, channel;
 
     if (stream.type === 'Source') {
       stream = stream.pipe(demux(stream, demuxxing));
-      stream.demux = function () { 
-        return stream.pipe(devnull()); 
+      stream.demux = function demux() { 
+        return (demux.ed = demux.ed || stream.pipe(devnull())); 
       }
       return stream;
     }
@@ -105,12 +92,12 @@ module.exports = function () {
     return channel;
   }
 
-  plex.channels = channels;
+  multi.channels = channels;
 
-  plex.channel = function (chan) { 
+  multi.channel = function (chan) { 
     return channels[chan];
   }
 
-  return plex;
+  return multi;
 
 }

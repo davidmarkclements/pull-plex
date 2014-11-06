@@ -87,17 +87,16 @@ function remover(channel, channels) {
     }
 }
 
-module.exports = function () {
+module.exports = function plex() {
   var channels = [], demuxxing = [];
 
-
-  function plex(stream) {
+  function multi(stream) {
     var ix, channel;
 
     if (stream.type === 'Source') {
       stream = stream.pipe(demux(stream, demuxxing));
-      stream.demux = function () { 
-        return stream.pipe(devnull()); 
+      stream.demux = function demux() { 
+        return (demux.ed = demux.ed || stream.pipe(devnull())); 
       }
       return stream;
     }
@@ -110,13 +109,13 @@ module.exports = function () {
     return channel;
   }
 
-  plex.channels = channels;
+  multi.channels = channels;
 
-  plex.channel = function (chan) { 
+  multi.channel = function (chan) { 
     return channels[chan];
   }
 
-  return plex;
+  return multi;
 
 }
 },{"./lib/encdec":3,"pull-core":5}],3:[function(require,module,exports){
