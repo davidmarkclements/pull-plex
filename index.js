@@ -37,26 +37,27 @@ var mux = pull.Through(function (read, stream, index) {
   return through
 })
 
-var demux = pull.Through(function (read, stream, channels) {
-  function demux(end, cb) {
+var demux = pull.Through(function (read, stream, channels, chanOffset) {
+  function coax(end, cb) {
     if (end) {return;}
     read(0, function (end, data) {
       if (end) {return;}
       var decoded = encdec(data)
       var chan = decoded.chan
-      channels[chan] = demux.channel(chan) 
+      channels[chan] = coax.channel(chan) 
       channels[chan].next(decoded.data)
       cb(end, data)
     })
   }
 
-  demux.channels = channels;
-  demux.channel =  function (chan) {
+  coax.channels = channels;
+  coax.channel =  function (chan) {
+    chan += chanOffset.n;
     return channels[chan] || 
       (channels[chan] = recieverChannel())
   }
 
-  return demux;
+  return coax;
 })
 
 function remover(channel, channels) {
@@ -73,11 +74,13 @@ function remover(channel, channels) {
 module.exports = function plex() {
   var channels = [], demuxxing = [];
 
+  var chanOffset = {n: 0};
+
   function multi(stream) {
     var ix, channel;
 
     if (stream.type === 'Source') {
-      stream = stream.pipe(demux(stream, demuxxing));
+      stream = stream.pipe(demux(stream, demuxxing, chanOffset));
       stream.demux = function demux() { 
         return (demux.ed = demux.ed || stream.pipe(devnull())); 
       }
@@ -95,7 +98,11 @@ module.exports = function plex() {
   multi.channels = channels;
 
   multi.channel = function (chan) { 
-    return channels[chan];
+    return channels[chan + chanOffset.n];
+  }
+
+  multi.offset = function (n) {
+    chanOffset.n = n;
   }
 
   return multi;
